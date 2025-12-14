@@ -152,7 +152,7 @@ Act like a project-aware Revit engineer who autonomously sequences tools to fulf
 // Helper functions for LLM integration
 function formatToolsForLLM(tools) {
   if (!tools || !Array.isArray(tools)) return [];
-  
+
   return tools.map((tool) => ({
     type: "function",
     function: {
@@ -209,11 +209,54 @@ app.post('/api/chat/completions', async (req, res) => {
   try {
     const { messages, tools, model = 'gpt-5', stream = false, includeSystemPrompt = true } = req.body;
 
+    // Validate JWT token
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'No authorization token provided' });
+    }
+
+    // Extract token (remove "Bearer " if present)
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+
+    const authServiceUrl = 'http://localhost:3000';
+    try {
+      console.log('Validating token with auth service...');
+      const validationResponse = await fetch(`${authServiceUrl}/api/auth/validate`, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token })
+      });
+
+      if (!validationResponse.ok) {
+        console.error('Auth service returned error status:', validationResponse.status);
+        return res.status(401).json({ error: 'Token validation request failed' });
+      }
+
+      const validationData = await validationResponse.json();
+      console.log('Validation response:', validationData);
+
+      if (!validationData.isValid) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+
+      if (!validationData.isFreeTrial) {
+        return res.status(403).json({ error: 'Subscription required (Free trial expired or not active)' });
+      }
+
+      // Token is valid and free trial is active, proceed
+    } catch (error) {
+      console.error('Authentication service error:', error);
+      return res.status(500).json({ error: 'Authentication check failed' });
+    }
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ error: 'OpenAI API key not configured' });
     }
-console.log(messages)
+    console.log(messages)
     // Prepare messages with system prompt if requested
     let finalMessages = messages;
     if (includeSystemPrompt && messages && messages.length > 0) {
@@ -248,7 +291,7 @@ console.log(messages)
       body: JSON.stringify(requestBody),
     });
 
-console.log(response);
+    console.log(response);
 
     if (!response.ok) {
       const error = await response.json();
