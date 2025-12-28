@@ -218,7 +218,7 @@ app.post('/api/chat/completions', async (req, res) => {
     // Extract token (remove "Bearer " if present)
     const token = authHeader.replace(/^Bearer\s+/i, '');
 
-    const authServiceUrl = 'http://localhost:3000';
+    const authServiceUrl = 'https://api-revit-backend.yokostyles.com';
     try {
       console.log('Validating token with auth service...');
       const validationResponse = await fetch(`${authServiceUrl}/api/auth/validate`, {
